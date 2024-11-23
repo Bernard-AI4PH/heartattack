@@ -1,0 +1,12 @@
+---
+title: "heart_attack"
+author: "Bernard Asante"
+date: "2024-11-23"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+
