@@ -12,8 +12,7 @@ library(vtable)
 
 ##REading data 
 ```{r}
-path = 'T:\\Desktop\\Program files\\Codes\\Datasets\\CSV files\\Heart Attack.csv'
-df <- read.csv(path)
+df <- read.csv('Heart Attack.csv')
 df %>% 
   colnames()
 ```
@@ -227,7 +226,7 @@ test_gender_age
 cor.test(df$age, df$troponin)
 ```
 #Regression models 
-```{r}
+```{r, warning=FALSE}
 model <- glm(class ~ age + gender + troponin, 
              data = df, 
              family = binomial)
