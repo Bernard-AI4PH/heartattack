@@ -1,12 +1,149 @@
 ---
-title: "heart_attack"
+title: "Heart_Attack Analysis "
 author: "Bernard Asante"
 date: "2024-11-23"
 output: html_document
 ---
-
-```{r}
+##Loading library 
+```{r, warning=FALSE}
 library(tidyverse)
+library(vtable)
 ```
 
+##REading data 
+```{r}
+path = 'T:\\Desktop\\Program files\\Codes\\Datasets\\CSV files\\Heart Attack.csv'
+df <- read.csv(path)
+df %>% 
+  colnames()
+```
+
+##Data Exploration
+```{r, warning=FALSE}
+df %>% 
+  glimpse()
+
+df %>% 
+  head()   #displaying first six rows
+
+df %>% 
+  tail()  #Displaying last 6 rows 
+```
+
+##Data cleaning 
+```{r}
+df <- df %>% 
+  select(age, gender, impluse, pressurehight, pressurelow, glucose, troponin, class) %>% 
+  rename(pulse = impluse, systolic = pressurehight, diastolic = pressurelow) %>% 
+  mutate(`glucose_mmol/l` = glucose / 18) %>% 
+  mutate(gender = recode(gender, 
+                         `0` = 'Female',
+                         `1` = 'Male')) %>% 
+  select(-glucose)
+
+head(df)
+
+
+df %>% 
+  summarise_all(~sum(is.na(.))) 
+
+head(df)
+```
+
+##Data manipulation on categorical vaiables 
+
+```{r}
+df %>% 
+  glimpse()   #observing columns with character or factor 
+
+freq_gender <- df %>% 
+  count(gender) %>% 
+  rename(freq = n)
+
+freq_gender
+
+freq_class <- df %>% 
+  count(class) %>% 
+  rename(freq = n)
+freq_class
+
+
+# Contingency(Two by two )table
+gender_class <- df %>% 
+  select(gender, class) %>% 
+  table()
+
+gender_class
+```
+
+
+
+
+##Data manipulation on numeric variables 
+```{r}
+df_mean <- df %>% 
+  summarise_if(is.numeric, mean)  #displaying mean fro all numeric values 
+
+df_mean
+
+mean_age <- df %>% 
+  summarise(mean_age = mean(age))    #displaying mean for a single numeric value
+
+mean_age
+
+
+
+df_fivenum <- df %>% 
+  summarise_if(is.numeric, fivenum)
+
+st(df_fivenum)
+
+
+```
+## Data manipulation (cat and num variables)
+```{r}
+means_for_gender <- df %>% 
+  group_by(gender) %>% 
+  summarise_if(is.numeric, mean)
+
+means_for_gender  
+
+means_for_class <- df %>% 
+  group_by(class) %>% 
+  summarise_if(is.numeric, mean)
+
+means_for_class # this can further be evaluated using t test 
+```
+
+##Data visualization 
+```{r}
+#Visualizing categorical variables (count)
+
+bar_gender <- df %>% 
+  ggplot(aes(gender, fill = gender))+
+  geom_bar()+
+  labs(title = 'Bar chart of gender distrubution')
+
+bar_gender
+
+bar_class <- df %>% 
+  ggplot(aes(class, fill = class))+
+  geom_bar()+
+  labs(title = 'Bar chart of class distrubution')
+
+bar_class
+
+
+#Displaying across other cat variables 
+bar_gender_class <- df %>% 
+  ggplot(aes(gender, fill = gender))+
+  geom_bar()+
+  bar_gender <- df %>% 
+  ggplot(aes(gender, fill = gender))+
+  geom_bar()+
+  labs(title = 'Bar chart of gender distrubution betweeen class')+
+  facet_grid(~class)
+
+bar_gender_class
+  
 
