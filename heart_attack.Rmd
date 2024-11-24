@@ -36,6 +36,7 @@ df <- df %>%
   select(age, gender, impluse, pressurehight, pressurelow, glucose, troponin, class) %>% 
   rename(pulse = impluse, systolic = pressurehight, diastolic = pressurelow) %>% 
   mutate(`glucose_mmol/l` = glucose / 18) %>% 
+  mutate(class= as.factor(class)) %>% 
   mutate(gender = recode(gender, 
                          `0` = 'Female',
                          `1` = 'Male')) %>% 
@@ -116,8 +117,9 @@ means_for_class # this can further be evaluated using t test
 ```
 
 ##Data visualization 
-```{r}
 #Visualizing categorical variables (count)
+```{r}
+
 
 bar_gender <- df %>% 
   ggplot(aes(gender, fill = gender))+
@@ -133,17 +135,128 @@ bar_class <- df %>%
 
 bar_class
 
-
 #Displaying across other cat variables 
 bar_gender_class <- df %>% 
-  ggplot(aes(gender, fill = gender))+
-  geom_bar()+
-  bar_gender <- df %>% 
   ggplot(aes(gender, fill = gender))+
   geom_bar()+
   labs(title = 'Bar chart of gender distrubution betweeen class')+
   facet_grid(~class)
 
 bar_gender_class
-  
+
+
+bar_class_gender <- df %>% 
+  ggplot(aes(class, fill = class))+
+  geom_bar()+
+  labs(title = 'Bar chart of gender distrubution betweeen class')+
+  facet_grid(~gender)
+
+bar_class_gender
+```
+#Visualizing Numeric variables
+```{r}
+hist_age <- df %>% 
+  ggplot(aes(age, fill = gender))+
+  geom_histogram(bin = 10)+
+  labs(title = 'Histogram for age')
+hist_age
+
+box_age <- df %>% 
+  ggplot(aes(gender, age, fill = gender))+
+  geom_boxplot()+
+  facet_grid(~class)+
+  labs(title = 'Boxplot for age bewteen class')
+box_age
+
+
+hist_troponin <- df %>% 
+  ggplot(aes(troponin, fill = class))+
+  geom_histogram(bin = 20)+
+  labs(title = 'Histogram for tropnin ')+
+  facet_grid(~class)
+hist_troponin
+
+box_troponin <- df %>% 
+  ggplot(aes(gender, troponin, fill = gender))+
+  geom_boxplot()+
+  facet_grid(~class)+
+  labs(title = 'Boxplot for troponin bewteen class')
+box_troponin
+
+
+#Scatter plot 
+glucose_troponin_point <- df %>% 
+  ggplot(aes(`glucose_mmol/l`, troponin, colour = class))+
+  geom_point()+
+  labs(title = 'Scatterplot for glucose and troponin')
+
+glucose_troponin_point
+
+age_troponin_point <- df %>% 
+  ggplot(aes(age, troponin, colour = class))+
+  geom_point()+
+  geom_smooth()+
+  labs(title = 'Scatterplot for age and troponin')
+
+age_troponin_point
+```
+##Testing hypothesis 
+#Chi_square
+```{r}
+chi_gender_class <- df %>% 
+  select(gender,class) %>% 
+  table()
+chi_gender_class  #Same as gender_class table 
+
+chisq.test(chi_gender_class)
+```
+# t test 
+```{r}
+test_gender_troponin <- df %>% 
+  select(gender, troponin) %>% 
+  t.test(troponin~gender, data = .)
+test_gender_troponin
+
+test_gender_age <- df %>% 
+  select(gender, age) %>% 
+  t.test(age~gender, data = .)
+test_gender_age
+```
+#Correlation 
+```{r}
+cor.test(df$age, df$troponin)
+```
+#Regression models 
+```{r}
+model <- glm(class ~ age + gender + troponin, 
+             data = df, 
+             family = binomial)
+summary(model)
+
+```
+#Visualizing model 
+```{r}
+library(ggplot2)
+
+# Extract coefficients
+coefficients <- summary(model)$coefficients
+coeff_df <- data.frame(
+  Predictor = rownames(coefficients),
+  Estimate = coefficients[, "Estimate"],
+  StdError = coefficients[, "Std. Error"],
+  pValue = coefficients[, "Pr(>|z|)"]
+)
+
+# Plot coefficients
+ggplot(coeff_df, aes(x = Predictor, y = Estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Estimate - StdError, ymax = Estimate + StdError), width = 0.2) +
+  theme_minimal() +
+  labs(title = "Logistic Regression Coefficients", y = "Estimate", x = "Predictor")
+```
+#Linear model 
+```{r}
+linear_model <- lm(troponin ~ age+gender+class+`glucose_mmol/l`, data = df)
+summary(linear_model)
+```
 
