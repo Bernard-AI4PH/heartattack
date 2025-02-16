@@ -1,0 +1,294 @@
+---
+title: "Machine_Learning_Tidymodel_Linear"
+author: "Bernard Asante"
+date: "2025-02-16"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(themis)
+library(parsnip)
+library(gtsummary)
+library(psych)
+```
+
+```{r}
+data <- read_csv("Heart Attack.csv")
+
+data %>% 
+  glimpse()
+```
+
+
+```{r}
+data <- data %>% 
+  rename(pulse = impluse, sys = pressurehight, dias = pressurelow) %>% 
+  mutate(glu_mmol = glucose/18)
+
+data %>% 
+  glimpse()
+```
+
+
+## Recoding variables 
+
+```{r}
+data <- data %>% 
+  mutate(gender = case_when(
+    gender == 1 ~ "Male",
+    gender == 0 ~ "Female"
+  )) %>% 
+  mutate(gender = as.factor(gender)) %>% 
+  mutate(class = as.factor(class))
+
+data %>% 
+  glimpse()
+```
+
+
+## Exploring missing data 
+
+```{r}
+missing_data <- data %>% 
+  summarise_all(~sum(is.na(.)))
+
+missing_data
+```
+
+# **Predictor Analysis**
+
+## EDA of the predictor 
+
+```{r}
+ggplot(data, aes (troponin ))+
+  geom_histogram()
+```
+
+
+
+
+```{r}
+univ_table <- data %>% 
+  tbl_uvregression(
+    method = lm,
+    y = troponin
+  )
+
+univ_table %>% as_kable()
+```
+
+## Correlation
+
+### Correlation_matrix
+
+```{r}
+
+library(reshape2)
+corr_matrix <- data %>% 
+  select(age, pulse, glu_mmol,kcm,troponin) %>% 
+  cor()
+
+corr_matrix
+
+melted_matrix <- melt(corr_matrix)
+
+melted_matrix
+```
+
+
+```{r}
+ggplot(melted_matrix, aes(x = Var1, y = Var2, fill = value))+
+  geom_tile()+
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue", midpoint = 0)
+```
+
+```{r}
+pairs.panels( data,
+              scale = FALSE,
+              method = "spearman",
+              lm = TRUE,
+              cor = TRUE,
+              jiggle = FALSE,
+              stars = FALSE)
+```
+
+
+# **Machine Leaning**
+
+## Selecting variable 
+
+```{r}
+lin_data <- data %>% 
+  select(age,gender, pulse,sys, dias,kcm,glu_mmol,troponin, class)
+
+lin_data %>% 
+  glimpse()
+
+
+lin_data %>% 
+  summary()
+```
+
+## Splitting Data
+
+```{r}
+set.seed(123)
+
+data_split <- initial_split(lin_data, prop = 0.70)
+
+train_data <- training(data_split)
+
+test_data <- testing(data_split)
+```
+
+
+## Building Model 
+
+```{r}
+lin_ridge <- linear_reg(penalty= tune(), mixture = tune()) %>% 
+  set_engine("glmnet")
+
+```
+
+
+## Building Recipe
+
+```{r}
+lin_recipe <- recipe(troponin ~ ., data = train_data) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors())
+  
+```
+
+
+## Building workflow
+
+```{r}
+lin_workflow <- workflow() %>% 
+  add_model(lin_ridge) %>% 
+  add_recipe(lin_recipe)
+```
+
+
+## Hyperparameter Tunning
+
+
+```{r}
+fold = vfold_cv(train_data, v=5)
+
+grid <- grid_regular(
+  penalty(range = c(0.0001, 1)),  
+  mixture(range = c(0, 1)),       # Mixture is between 0 (ridge) and 1 (lasso)
+  levels = c(5, 5)                # Adjust the number of grid points
+)
+
+
+lin_tune_wrkflow <- tune_grid(lin_workflow,
+                              resamples = fold,
+                              grid = grid
+)
+
+lin_tune_wrkflow
+
+```
+## Selecting and Finalizing the best model
+
+
+```{r}
+best_params <- select_best(lin_tune_wrkflow, metric = "rmse")  # Change to "accuracy" for classification
+
+final_wrkflow <- finalize_workflow(lin_workflow, best_params)
+```
+
+
+## Training the model 
+
+```{r}
+final_wrkflow_fit <- final_wrkflow %>% 
+  fit(train_data)
+```
+
+
+```{r}
+final_wrkflow_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy()
+```
+
+
+
+
+## Predictions 
+
+```{r}
+predict <- predict(final_wrkflow_fit, new_data = test_data)
+
+predict %>% 
+  head()
+```
+
+## Model Evaluation 
+
+```{r}
+model_eval <- bind_cols(test_data, predict)
+
+
+model_eval %>% 
+  glimpse()
+
+```
+
+## Accuracy 
+
+```{r}
+rmse <- rmse(model_eval, truth = troponin, estimate = .pred)
+
+rmse
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

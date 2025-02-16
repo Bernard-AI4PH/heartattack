@@ -1,0 +1,227 @@
+---
+title: "Machine_Learning_Tidymodel_Logistic"
+author: "Bernard Asante"
+date: "2025-02-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(themis)
+library(parsnip)
+```
+
+```{r}
+data <- read_csv("Heart Attack.csv")
+
+data %>% 
+  glimpse()
+```
+```{r}
+data <- data %>% 
+  rename(pulse = impluse, sys = pressurehight, dias = pressurelow) %>% 
+  mutate(glu_mmol = glucose/18)
+
+data %>% 
+  glimpse()
+```
+
+
+## Recoding variables 
+
+```{r}
+data <- data %>% 
+  mutate(gender = case_when(
+    gender == 1 ~ "Male",
+    gender == 0 ~ "Female"
+  )) %>% 
+  mutate(gender = as.factor(gender)) %>% 
+  mutate(class = as.factor(class))
+
+data %>% 
+  glimpse()
+```
+
+
+## Exploring missing data 
+
+```{r}
+missing_data <- data %>% 
+  summarise_all(~sum(is.na(.)))
+
+missing_data
+```
+
+# Machine Learning 
+
+## Logistic Regression 
+
+```{r}
+
+log_data <- data %>% 
+  select(age,gender, pulse,sys, dias,kcm,glu_mmol,troponin, class)
+
+log_data %>% 
+  glimpse()
+
+
+log_data %>% 
+  summary()
+```
+### Assesing class imbalance in the predictor 
+
+```{r}
+ggplot(log_data,aes(x = class))+
+  geom_bar()
+```
+
+### Splitting the dataset
+
+```{r}
+set.seed(125)
+
+data_split <- initial_split(log_data, prop = 0.70, strata = class)
+
+train_data = training(data_split)
+
+test_data = testing(data_split)
+```
+
+
+### Building the Recipe 
+
+```{r}
+log_recipe <- recipe(class ~ ., data = train_data ) %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_zv(all_predictors())
+```
+
+
+### Building the model
+
+```{r}
+log_model <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+```
+
+### Building the Workflow
+
+```{r}
+log_wrkflow <- workflow() %>% 
+  add_recipe(log_recipe) %>% 
+  add_model(log_model)
+```
+
+
+### Cross_validation with workflow 
+
+```{r}
+fold <- vfold_cv(train_data, v = 5)
+
+log_wrkflow_cv <- log_wrkflow %>% 
+  fit_resamples(fold, control = control_resamples(save_workflow = TRUE))
+
+```
+###  Extract the best model from tuning results and finalize it 
+
+```{r}
+
+best_model <- select_best(log_wrkflow_cv, metric = "accuracy")
+
+best_model
+
+
+# Finalize the workflow using the best parameters
+final_log_workflow <- finalize_workflow(log_wrkflow, best_model)
+
+```
+
+
+### Fitting the Model 
+
+```{r}
+# Fit the finalized model on the full training data
+final_log_workflow_fit <- fit(final_log_workflow, data = train_data)
+
+```
+
+```{r}
+final_log_workflow_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy()
+```
+
+
+### Model Evaluation 
+
+
+```{r}
+log_predict_class <- predict(final_log_workflow_fit, new_data = test_data, type = "class")
+
+log_predict_class %>% 
+  head()
+
+
+log_predict_prob <- predict(final_log_workflow_fit, new_data = test_data, type = "prob") 
+
+log_predict_prob %>% 
+  head()
+```
+```{r}
+log_final <- bind_cols(test_data, log_predict_class)
+
+log_final %>% 
+  head()
+```
+
+```{r}
+accuracy(log_final, truth = class, estimate = .pred_class)
+sens(log_final, truth = class, estimate = .pred_class)
+spec(log_final, truth = class, estimate = .pred_class)
+```
+
+## Drawing ROc_curve 
+
+```{r}
+log_final_prob <- bind_cols(log_predict_prob, test_data)
+
+log_final_prob
+```
+
+
+```{r}
+roc_curve <- log_final_prob %>% 
+  roc_curve(truth = class, .pred_negative ) %>% 
+  autoplot()
+
+roc_curve
+```
+
+### Feature Importance 
+
+```{r}
+coeff <- tidy(final_log_workflow_fit) %>% 
+  arrange(desc(abs(estimate))) %>% 
+  filter(abs(estimate) >0.50)
+
+coeff
+```
+
+
+```{r}
+ggplot(coeff, aes(x = term, y = estimate, fill = term))+
+  geom_col()+
+  coord_flip()
+```
+
+
+
+
+
+
+
